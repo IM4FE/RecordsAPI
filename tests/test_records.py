@@ -43,7 +43,7 @@ class TestCreateRecord:
         """Создание записи с некорректной датой"""
         data = {
             "title": "Test record",
-            "due_date": "not-a-date"
+            "record_date": "not-a-date"
         }
         response = client.post("/records", json=data)
 
