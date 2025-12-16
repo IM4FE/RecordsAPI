@@ -13,7 +13,7 @@ from .database import get_db, engine, Base
 # Создаем таблицы
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Record API")
+app = FastAPI(title="Records API")
 
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
