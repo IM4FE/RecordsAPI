@@ -1,21 +1,26 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import (
+    AsyncSession, async_sessionmaker, create_async_engine
+)
+from sqlalchemy.orm import DeclarativeBase
 import os
 
-# Для тестов используем другую БД
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./database.db")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_async_engine(
+    DATABASE_URL, echo=False, connect_args={"check_same_thread": False}
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+AsyncSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 
-def get_db():
-    db = SessionLocal()
+class Base(DeclarativeBase):
+    pass
+
+async def get_db() -> AsyncSession:
+    session = AsyncSessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        await session.close()
+        await session.aclose()

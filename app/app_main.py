@@ -1,19 +1,31 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, status
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from fastapi import FastAPI, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from typing import List, Optional
 import datetime
 from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from . import models, schemas
 from .database import get_db, engine, Base
 
 # Создаем таблицы
-models.Base.metadata.create_all(bind=engine)
+import asyncio
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(models.Base.metadata.create_all)
 
 app = FastAPI(title="Records API")
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Принудительно закрываем engine"""
+    await engine.dispose()
 
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
@@ -28,58 +40,34 @@ def read_root():
 
 # Проверка работы
 @app.get("/health", tags=["system"])
-def health():
+async def health():
     return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
 
 
 # Создание записи
-@app.post(
-    "/records",
-    response_model=schemas.RecordResponse,
-    status_code=status.HTTP_201_CREATED,
-    tags=["records"]
-)
-def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db)):
+@app.post("/records", response_model=schemas.RecordResponse, status_code=201, tags=["records"])
+async def create_record(record: schemas.RecordCreate, db: AsyncSession = Depends(get_db)):
     db_record = models.Record(**record.dict())
     db.add(db_record)
-    db.commit()
-    db.refresh(db_record)
+    await db.commit()
+    await db.refresh(db_record)
     return db_record
-
 
 # Получение списка записей с фильтрацией
 @app.get("/records", response_model=List[schemas.RecordResponse], tags=["records"])
-def list_records(
-        db: Session = Depends(get_db),
-        q: Optional[str] = Query(None, description="Поиск по названию или описанию"),
-        is_done: Optional[bool] = Query(None, description="Фильтр по готовности"),
-        record_date_before: Optional[datetime.datetime] = Query(None, description="Дата записи до"),
-        record_date_after: Optional[datetime.datetime] = Query(None, description="Дата записи после"),
-        sort: Optional[str] = Query("created_at", description="Поле для сортировки"),
-        order: Optional[str] = Query("desc", description="Порядок сортировки (asc/desc)"),
+async def list_records(
+        db: AsyncSession = Depends(get_db),
+        q: Optional[str] = Query(None),
+        is_done: Optional[bool] = Query(None),
+        record_date_before: Optional[datetime.datetime] = Query(None),
+        record_date_after: Optional[datetime.datetime] = Query(None),
+        sort: str = Query("created_at"),
+        order: str = Query("desc"),
         offset: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=100),
 ):
-    # Валидация параметров сортировки
-    valid_sort_fields = {"id", "title", "is_done", "record_date", "created_at", "updated_at"}
-    valid_orders = {"asc", "desc"}
-
-    if sort not in valid_sort_fields:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid sort field. Must be one of: {valid_sort_fields}"
-        )
-
-    if order not in valid_orders:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid order. Must be one of: {valid_orders}"
-        )
-
-    # Построение запроса
     stmt = select(models.Record)
 
-    # Применение фильтров
     if q:
         search_pattern = f"%{q}%"
         stmt = stmt.where(
@@ -92,63 +80,57 @@ def list_records(
     if is_done is not None:
         stmt = stmt.where(models.Record.is_done == is_done)
 
-    if record_date_before is not None:
-        stmt = stmt.where(models.Record.record_date <= record_date_before)
-
-    if record_date_after is not None:
-        stmt = stmt.where(models.Record.record_date >= record_date_after)
+    # Валидация сортировки (без изменений)
+    valid_sort_fields = {"id", "title", "is_done", "record_date", "created_at", "updated_at"}
+    if sort not in valid_sort_fields:
+        raise HTTPException(400, detail=f"Invalid sort field: {valid_sort_fields}")
 
     # Сортировка
     sort_column = getattr(models.Record, sort)
     if order == "desc":
         sort_column = sort_column.desc()
-    stmt = stmt.order_by(sort_column)
+    stmt = stmt.order_by(sort_column).offset(offset).limit(limit)
 
-    # Пагинация
-    stmt = stmt.offset(offset).limit(limit)
-
-    records = db.scalars(stmt).all()
+    result = await db.execute(stmt)
+    records = result.scalars().all()
     return records
-
 
 # Получение записи по ID
 @app.get("/records/{record_id}", response_model=schemas.RecordResponse, tags=["records"])
-def get_record(record_id: int, db: Session = Depends(get_db)):
-    record = db.get(models.Record, record_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
-    return record
+async def get_record(record_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.get(models.Record, record_id)
+    if not result:
+        raise HTTPException(404, "Record not found")
+    return result
 
 
 # Обновление записи
 @app.put("/records/{record_id}", response_model=schemas.RecordResponse, tags=["records"])
-def update_record(
+async def update_record(
         record_id: int,
         record_update: schemas.RecordUpdate,
-        db: Session = Depends(get_db)
+        db: AsyncSession = Depends(get_db)
 ):
-    record = db.get(models.Record, record_id)
+    record = await db.get(models.Record, record_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(404, "Record not found")
 
-    # Обновляем только переданные поля
     update_data = record_update.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(record, field, value)
 
     record.updated_at = datetime.datetime.now()
-    db.commit()
-    db.refresh(record)
+    await db.commit()
+    await db.refresh(record)
     return record
 
-
 # Удаление записи
-@app.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["records"])
-def delete_task(record_id: int, db: Session = Depends(get_db)):
-    record = db.get(models.Record, record_id)
+@app.delete("/records/{record_id}", status_code=204, tags=["records"])
+async def delete_record(record_id: int, db: AsyncSession = Depends(get_db)):
+    record = await db.get(models.Record, record_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(404, "Record not found")
 
-    db.delete(record)
-    db.commit()
+    await db.delete(record)
+    await db.commit()
     return None

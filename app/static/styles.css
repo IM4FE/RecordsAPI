@@ -49,12 +49,12 @@
 
         .status-badge.online {
             background: rgba(74, 85, 104, 0.25);
-            color: #c3ff95;
+            color: #86feaa;
         }
 
         .status-badge.offline {
             background: rgba(74, 85, 104, 0.25);
-            color: #f7867e;
+            color: #f76464;
         }
 
         .container {
