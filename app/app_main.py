@@ -1,8 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 from typing import List, Optional
 import datetime
+from pathlib import Path
 
 from . import models, schemas
 from .database import get_db, engine, Base
@@ -10,8 +13,18 @@ from .database import get_db, engine, Base
 # Создаем таблицы
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="DefaultRecord API")
+app = FastAPI(title="Record API")
 
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+@app.get("/", tags=["system"])
+def read_root():
+    index_path = Path(__file__).parent / "static" / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"message": "Welcome to Record API"}
 
 # Проверка работы
 @app.get("/health", tags=["system"])
