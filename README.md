@@ -6,6 +6,7 @@ This API service is created as a system template for entering records
 Libraries such as **sqlalchemy(orm mode+async)** and **pydantic** were also used
 
 ### Tests - PyTest
+For starting tests use this command: `pytest tests/ -v --disable-warnings`
 
 ## Frontend
 **HTML/JS** frontend with **Tailwind CSS**
