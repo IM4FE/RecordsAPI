@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+    <!-- Весь ваш HTML без изменений -->
     <div class="header">
         <h1>Records API</h1>
         <p class="header-subtitle">Управление записями</p>
@@ -15,74 +16,43 @@
 
     <div class="container">
         <div class="layout">
-            <!-- Боковая панель -->
             <aside class="sidebar">
-                <!-- Форма добавления -->
                 <div class="card">
                     <div class="card-header">Новая запись</div>
                     <div class="card-body">
                         <form id="recordForm">
                             <div class="form-group">
                                 <label for="title">Название *</label>
-                                <input
-                                    type="text"
-                                    id="title"
-                                    placeholder="Введите название..."
-                                    minlength="2"
-                                    maxlength="75"
-                                    required
-                                >
+                                <input type="text" id="title" placeholder="Введите название..." minlength="2" maxlength="75" required>
                             </div>
-
                             <div class="form-group">
                                 <label for="details">Описание</label>
-                                <textarea
-                                    id="details"
-                                    placeholder="Введите описание (опционально)..."
-                                    maxlength="500"
-                                ></textarea>
+                                <textarea id="details" placeholder="Введите описание (опционально)..." maxlength="500"></textarea>
                             </div>
-
                             <div class="form-group">
                                 <label for="recordDate">Дата записи</label>
-                                <input
-                                    type="datetime-local"
-                                    id="recordDate"
-                                >
+                                <input type="datetime-local" id="recordDate">
                             </div>
-
                             <div class="form-group">
                                 <div class="checkbox-wrapper">
                                     <input type="checkbox" id="isDone">
                                     <label for="isDone">Отмечена как завершённая</label>
                                 </div>
                             </div>
-
                             <button type="submit" class="button button-primary">Создать запись</button>
                         </form>
-
                         <div class="divider"></div>
-
-                        <button id="clearFiltersBtn" class="button button-secondary">
-                            Очистить фильтры
-                        </button>
+                        <button id="clearFiltersBtn" class="button button-secondary">Очистить фильтры</button>
                     </div>
                 </div>
             </aside>
 
-            <!-- Основной контент -->
             <main class="main-content">
-                <!-- Фильтры -->
                 <div class="filters-bar">
                     <div class="filter-control">
                         <label for="searchInput">Поиск</label>
-                        <input
-                            type="text"
-                            id="searchInput"
-                            placeholder="По названию или описанию..."
-                        >
+                        <input type="text" id="searchInput" placeholder="По названию или описанию...">
                     </div>
-
                     <div class="filter-control">
                         <label for="filterDone">Статус</label>
                         <select id="filterDone">
@@ -91,7 +61,6 @@
                             <option value="true">Завершены</option>
                         </select>
                     </div>
-
                     <div class="filter-control">
                         <label for="sortBy">Сортировать по</label>
                         <select id="sortBy">
@@ -101,7 +70,6 @@
                             <option value="is_done">Статусу</option>
                         </select>
                     </div>
-
                     <div class="filter-control">
                         <label for="sortOrder">Порядок</label>
                         <select id="sortOrder">
@@ -111,10 +79,8 @@
                     </div>
                 </div>
 
-                <!-- Уведомления -->
                 <div id="alertContainer"></div>
 
-                <!-- Список записей -->
                 <div class="card">
                     <div class="card-header">Записи</div>
                     <div class="card-body">
@@ -124,7 +90,6 @@
                                 <p>Загрузка записей...</p>
                             </div>
                         </div>
-
                         <div class="pagination" id="paginationContainer" style="display: none;">
                             <button id="prevBtn">Предыдущая</button>
                             <span class="pagination-info" id="pageInfo"></span>
@@ -136,43 +101,41 @@
         </div>
     </div>
 
+    <!-- ✅ ИСПРАВЛЁННЫЙ JavaScript -->
     <script>
         const API_URL = window.location.origin;
         let currentPage = 0;
         const limit = 10;
-        let filters = {
-            q: '',
-            is_done: null,
-            sort: 'created_at',
-            order: 'desc'
-        };
+        let filters = { q: '', is_done: null, sort: 'created_at', order: 'desc' };
 
-        // Проверка статуса сервера
-        async function checkServerStatus() {
-            try {
-                const response = await fetch(`${API_URL}/health`);
-                if (response.ok) {
-                    const statusBadge = document.getElementById('statusBadge');
-                    statusBadge.textContent = 'API Online';
-                    statusBadge.className = 'status-badge online';
-                } else {
-                    updateStatus('offline');
-                }
-            } catch (error) {
-                updateStatus('offline');
-            }
-        }
+        // ✅ ДИНАМИЧЕСКАЯ перезапись опций порядка
+        function updateSortOrderOptions() {
+            const sortBy = document.getElementById('sortBy').value;
+            const sortOrderSelect = document.getElementById('sortOrder');
 
-        function updateStatus(status) {
-            const statusBadge = document.getElementById('statusBadge');
-            if (status === 'offline') {
-                statusBadge.textContent = 'API Offline';
-                statusBadge.className = 'status-badge offline';
+            if (sortBy === 'is_done') {
+                sortOrderSelect.innerHTML = `
+                    <option value="asc">Сначала рабочие</option>
+                    <option value="desc">Сначала завершённые</option>
+                `;
+            } else {
+                sortOrderSelect.innerHTML = `
+                    <option value="desc">Новые сверху</option>
+                    <option value="asc">Старые сверху</option>
+                `;
             }
         }
 
         // Загрузка записей
         async function loadRecords() {
+            const recordsList = document.getElementById('recordsList');
+            recordsList.innerHTML = `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Загрузка записей...</p>
+                </div>
+            `;
+
             try {
                 const params = new URLSearchParams({
                     offset: currentPage * limit,
@@ -185,7 +148,7 @@
                 if (filters.is_done !== null) params.append('is_done', filters.is_done);
 
                 const response = await fetch(`${API_URL}/records?${params}`);
-                if (!response.ok) throw new Error('Failed to load records');
+                if (!response.ok) throw new Error('Ошибка загрузки');
 
                 const records = await response.json();
                 renderRecords(records);
@@ -195,7 +158,6 @@
             }
         }
 
-        // Отрисовка записей
         function renderRecords(records) {
             const recordsList = document.getElementById('recordsList');
 
@@ -217,7 +179,6 @@
                         <div class="record-title">${escapeHtml(record.title)}</div>
                         <span class="record-id">#${record.id}</span>
                     </div>
-
                     <div class="record-meta">
                         <div class="meta-item">
                             <span class="meta-label">Создана:</span>
@@ -236,17 +197,12 @@
                             </div>
                         ` : ''}
                     </div>
-
-                    ${record.details ? `
-                        <div class="record-desc">${escapeHtml(record.details)}</div>
-                    ` : ''}
-
+                    ${record.details ? `<div class="record-desc">${escapeHtml(record.details)}</div>` : ''}
                     <div class="record-status">
                         <span class="status-badge-item ${record.is_done ? 'done' : 'pending'}">
                             ${record.is_done ? 'Завершена' : 'В работе'}
                         </span>
                     </div>
-
                     <div class="record-actions">
                         <button class="button button-success button-sm" onclick="toggleRecord(${record.id})">
                             ${record.is_done ? 'Вернуть в работу' : 'Отметить завершённой'}
@@ -261,130 +217,125 @@
             updatePagination(records.length === limit);
         }
 
-        // Создание записи
-        document.getElementById('recordForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const title = document.getElementById('title').value;
-            const details = document.getElementById('details').value || null;
-            const recordDate = document.getElementById('recordDate').value || null;
-            const isDone = document.getElementById('isDone').checked;
-
-            try {
-                const response = await fetch(`${API_URL}/records`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title,
-                        details,
-                        record_date: recordDate ? new Date(recordDate).toISOString() : null,
-                        is_done: isDone
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Ошибка при создании записи');
-                }
-
-                showAlert('Запись успешно создана', 'success');
-                document.getElementById('recordForm').reset();
+        // Инициализация после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            // Обработчики
+            document.getElementById('sortBy').addEventListener('change', function(e) {
+                filters.sort = e.target.value;
+                updateSortOrderOptions();
+                filters.order = filters.sort === 'is_done' ? 'asc' : 'desc';
                 currentPage = 0;
                 loadRecords();
-            } catch (error) {
-                showAlert('Ошибка: ' + error.message, 'error');
-                console.error(error);
-            }
+            });
+
+            document.getElementById('sortOrder').addEventListener('change', function(e) {
+                filters.order = e.target.value;
+                currentPage = 0;
+                loadRecords();
+            });
+
+            document.getElementById('searchInput').addEventListener('input', function(e) {
+                filters.q = e.target.value;
+                currentPage = 0;
+                loadRecords();
+            });
+
+            document.getElementById('filterDone').addEventListener('change', function(e) {
+                filters.is_done = e.target.value === '' ? null : e.target.value === 'true';
+                currentPage = 0;
+                loadRecords();
+            });
+
+            document.getElementById('clearFiltersBtn').addEventListener('click', function() {
+                filters = { q: '', is_done: null, sort: 'created_at', order: 'desc' };
+                currentPage = 0;
+                document.getElementById('searchInput').value = '';
+                document.getElementById('filterDone').value = '';
+                document.getElementById('sortBy').value = 'created_at';
+                updateSortOrderOptions();
+                loadRecords();
+            });
+
+            document.getElementById('recordForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const formData = {
+                    title: document.getElementById('title').value,
+                    details: document.getElementById('details').value || null,
+                    record_date: document.getElementById('recordDate').value ?
+                        new Date(document.getElementById('recordDate').value).toISOString() : null,
+                    is_done: document.getElementById('isDone').checked
+                };
+
+                try {
+                    const response = await fetch(`${API_URL}/records`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(formData)
+                    });
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || 'Ошибка создания');
+                    }
+                    showAlert('Запись создана!', 'success');
+                    this.reset();
+                    currentPage = 0;
+                    loadRecords();
+                } catch (error) {
+                    showAlert('Ошибка: ' + error.message, 'error');
+                }
+            });
+
+            // Пагинация
+            document.getElementById('prevBtn').addEventListener('click', function() {
+                if (currentPage > 0) {
+                    currentPage--;
+                    loadRecords();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+
+            document.getElementById('nextBtn').addEventListener('click', function() {
+                currentPage++;
+                loadRecords();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+
+            // Инициализация
+            updateSortOrderOptions();
+            checkServerStatus();
+            loadRecords();
+            setInterval(checkServerStatus, 30000);
         });
 
-        // Переключение статуса записи
+        // Глобальные функции
         async function toggleRecord(id) {
             try {
                 const response = await fetch(`${API_URL}/records/${id}`);
                 const record = await response.json();
-
                 const updateResponse = await fetch(`${API_URL}/records/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ is_done: !record.is_done })
                 });
-
                 if (!updateResponse.ok) throw new Error('Ошибка обновления');
-
-                showAlert('Статус записи обновлен', 'success');
+                showAlert('Статус обновлён', 'success');
                 loadRecords();
             } catch (error) {
                 showAlert('Ошибка: ' + error.message, 'error');
             }
         }
 
-        // Удаление записи
         async function deleteRecord(id) {
             if (!confirm('Вы уверены? Это действие нельзя отменить.')) return;
-
             try {
-                const response = await fetch(`${API_URL}/records/${id}`, {
-                    method: 'DELETE'
-                });
-
+                const response = await fetch(`${API_URL}/records/${id}`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Ошибка удаления');
-
                 showAlert('Запись удалена', 'success');
                 loadRecords();
             } catch (error) {
                 showAlert('Ошибка: ' + error.message, 'error');
             }
         }
-
-        // Обработчики фильтров
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            filters.q = e.target.value;
-            currentPage = 0;
-            loadRecords();
-        });
-
-        document.getElementById('filterDone').addEventListener('change', (e) => {
-            filters.is_done = e.target.value === '' ? null : e.target.value === 'true';
-            currentPage = 0;
-            loadRecords();
-        });
-
-        document.getElementById('sortBy').addEventListener('change', (e) => {
-            filters.sort = e.target.value;
-            currentPage = 0;
-            loadRecords();
-        });
-
-        document.getElementById('sortOrder').addEventListener('change', (e) => {
-            filters.order = e.target.value;
-            currentPage = 0;
-            loadRecords();
-        });
-
-        document.getElementById('clearFiltersBtn').addEventListener('click', () => {
-            filters = { q: '', is_done: null, sort: 'created_at', order: 'desc' };
-            currentPage = 0;
-            document.getElementById('searchInput').value = '';
-            document.getElementById('filterDone').value = '';
-            document.getElementById('sortBy').value = 'created_at';
-            document.getElementById('sortOrder').value = 'desc';
-            loadRecords();
-        });
-
-        // Пагинация
-        document.getElementById('prevBtn').addEventListener('click', () => {
-            if (currentPage > 0) {
-                currentPage--;
-                loadRecords();
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        });
-
-        document.getElementById('nextBtn').addEventListener('click', () => {
-            currentPage++;
-            loadRecords();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
 
         function updatePagination(hasMore) {
             const container = document.getElementById('paginationContainer');
@@ -398,7 +349,23 @@
             }
         }
 
-        // Уведомления
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const statusBadge = document.getElementById('statusBadge');
+                if (response.ok) {
+                    statusBadge.textContent = 'API Online';
+                    statusBadge.className = 'status-badge online';
+                } else {
+                    statusBadge.textContent = 'API Offline';
+                    statusBadge.className = 'status-badge offline';
+                }
+            } catch (error) {
+                document.getElementById('statusBadge').textContent = 'API Offline';
+                document.getElementById('statusBadge').className = 'status-badge offline';
+            }
+        }
+
         function showAlert(message, type = 'info') {
             const container = document.getElementById('alertContainer');
             const alert = document.createElement('div');
@@ -406,18 +373,13 @@
             alert.textContent = message;
             container.innerHTML = '';
             container.appendChild(alert);
-
             setTimeout(() => alert.remove(), 4000);
         }
 
-        // Вспомогательные функции
         function formatDate(dateString) {
             return new Date(dateString).toLocaleString('ru-RU', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
             });
         }
 
@@ -425,11 +387,6 @@
             const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
             return text.replace(/[&<>"']/g, m => map[m]);
         }
-
-        // Инициализация
-        checkServerStatus();
-        loadRecords();
-        setInterval(checkServerStatus, 30000);
     </script>
 </body>
 </html>
