@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 import datetime
 
@@ -9,7 +9,7 @@ class RecordBase(BaseModel):
     is_done: bool = Field(False)
     record_date: Optional[datetime.datetime] = Field(None)
 
-    @validator('record_date', pre=True)
+    @field_validator('record_date')
     def parse_due_date(cls, value):
         if isinstance(value, str):
             try:
@@ -27,7 +27,7 @@ class RecordUpdate(BaseModel):
     is_done: Optional[bool] = None
     record_date: Optional[datetime.datetime] = Field(None)
 
-    @validator('record_date', pre=True)
+    @field_validator('record_date')
     def parse_due_date(cls, value):
         if isinstance(value, str):
             try:
@@ -41,5 +41,5 @@ class RecordResponse(RecordBase):
     created_at: datetime.datetime
     updated_at: Optional[datetime.datetime]
 
-    class Config:
+    class ConfigDict:
         from_attributes = True

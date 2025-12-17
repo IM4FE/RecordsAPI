@@ -1,9 +1,10 @@
 import pytest
 import datetime
 
+pytestmark = pytest.mark.anyio
 
 class TestHealthEndpoint:
-    def test_health_check(self, client):
+    async def test_health_check(self, client):
         """Тест эндпоинта /health"""
         response = client.get("/health")
 
@@ -14,7 +15,7 @@ class TestHealthEndpoint:
 
 
 class TestCreateRecord:
-    def test_create_record_success(self, client, sample_record_data):
+    async def test_create_record_success(self, client, sample_record_data):
         """Успешное создание записи"""
         response = client.post("/records", json=sample_record_data)
 
@@ -29,7 +30,7 @@ class TestCreateRecord:
         assert "created_at" in data
         assert data["updated_at"] is None
 
-    def test_create_record_invalid_title(self, client):
+    async def test_create_record_invalid_title(self, client):
         """Создание записи с некорректным заголовком"""
         # Слишком короткий заголовок
         data = {"title": "a"}
@@ -39,7 +40,7 @@ class TestCreateRecord:
         data = response.json()
         assert "detail" in data
 
-    def test_create_record_invalid_record_date(self, client):
+    async def test_create_record_invalid_record_date(self, client):
         """Создание записи с некорректной датой"""
         data = {
             "title": "Test record",
@@ -51,7 +52,7 @@ class TestCreateRecord:
 
 
 class TestGetRecord:
-    def test_get_existing_record(self, client, create_test_records):
+    async def test_get_existing_record(self, client, create_test_records):
         """Получение существующей записи"""
         record = create_test_records[0]
 
@@ -63,7 +64,7 @@ class TestGetRecord:
         assert data["title"] == record.title
 
 class TestUpdateRecord:
-    def test_update_record_partial(self, client, create_test_records):
+    async def test_update_record_partial(self, client, create_test_records):
         """Частичное обновление записи"""
         record = create_test_records[0]
 
@@ -80,7 +81,7 @@ class TestUpdateRecord:
         assert data["title"] == record.title  # не изменилось
         assert data["updated_at"] is not None  # должно обновиться
 
-    def test_update_record_full(self, client, create_test_records):
+    async def test_update_record_full(self, client, create_test_records):
         """Полное обновление записи"""
         record = create_test_records[0]
 
@@ -101,7 +102,7 @@ class TestUpdateRecord:
         assert data["is_done"] is True
 
 class TestDeleteRecord:
-    def test_delete_record_success(self, client, create_test_records):
+    async def test_delete_record_success(self, client, create_test_records):
         """Успешное удаление записи"""
         record = create_test_records[0]
 

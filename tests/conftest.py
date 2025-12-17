@@ -1,7 +1,8 @@
 import pytest
+import asyncio
+import pytest_asyncio
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 import datetime
 
@@ -10,52 +11,43 @@ from app.database import get_db
 from app.models import Base, Record
 
 # Создаем тестовую базу данных в памяти
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@pytest.fixture(scope="session")
+def test_engine():
+    engine = create_async_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    yield engine
+    asyncio.run(engine.dispose())
 
+TestingSessionLocal = async_sessionmaker(class_=AsyncSession)
+
+@pytest_asyncio.fixture(scope="function")
+async def db_session(test_engine):
+    """Фикстура БД + клиент"""
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async with TestingSessionLocal(bind=test_engine) as session:
+        yield session
+        await session.rollback()
+
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 @pytest.fixture(scope="function")
-def db():
-    """Фикстура для тестовой базы данных"""
-    # Создаем таблицы
-    Base.metadata.create_all(bind=engine)
+def client(db_session):
+    """Синхронный клиент"""
+    async def override_get_db():
+        yield db_session
 
-    # Создаем сессию
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-    # Очищаем таблицы после теста
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture(scope="function")
-def client(db):
-    """Фикстура для тестового клиента"""
-
-    def override_get_db():
-        try:
-            yield db
-        finally:
-            pass
-
-    # Подменяем зависимость базы данных
     app.dependency_overrides[get_db] = override_get_db
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    # Очищаем подмену
+    with TestClient(app) as c:
+        yield c
     app.dependency_overrides.clear()
-
 
 @pytest.fixture
 def sample_record_data():
@@ -68,8 +60,8 @@ def sample_record_data():
     }
 
 
-@pytest.fixture
-def create_test_records(db):
+@pytest_asyncio.fixture(scope="function")
+async def create_test_records(db_session):
     """Фикстура для создания тестовых записей"""
     records = []
 
@@ -80,7 +72,7 @@ def create_test_records(db):
         is_done=False,
         record_date=datetime.datetime.now() + datetime.timedelta(days=1)
     )
-    db.add(record1)
+    db_session.add(record1)
     records.append(record1)
 
     # Запись 2
@@ -90,7 +82,7 @@ def create_test_records(db):
         is_done=True,
         record_date=datetime.datetime.now() + datetime.timedelta(days=3)
     )
-    db.add(record2)
+    db_session.add(record2)
     records.append(record2)
 
     # Запись 3
@@ -100,12 +92,12 @@ def create_test_records(db):
         is_done=False,
         record_date=datetime.datetime.now() + datetime.timedelta(days=7)
     )
-    db.add(record3)
+    db_session.add(record3)
     records.append(record3)
 
-    db.commit()
+    await db_session.commit()
 
     for record in records:
-        db.refresh(record)
+        await db_session.refresh(record)
 
     return records

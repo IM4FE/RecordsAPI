@@ -19,7 +19,7 @@ async def init_db():
 app = FastAPI(title="Records API")
 
 @app.on_event("startup")
-async def startup():
+async def startup_event():
     await init_db()
 
 @app.on_event("shutdown")
