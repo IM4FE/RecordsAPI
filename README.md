@@ -14,7 +14,8 @@ For starting tests use this command: `pytest tests/ -v --disable-warnings`
 ## Build and run
 Clone this repository by command: `git clone https://github.com/IM4FE/RecordsAPI.git`
 
-When you're ready, start application by running:
-`docker compose up --build`.
+For compose project to container Docker use this commands:
+
+`docker init` and `docker compose up --build`.
 
 Your application will be available at http://127.0.0.1:8000/.
